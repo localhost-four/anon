@@ -35,14 +35,6 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Verify directory structure
-        run: |
-          echo "Checking directory structure..."
-          ls -R .
-          if [ ! -f script.js ]; then
-            echo "Error: script.js not found"
-            exit 1
-
 
       - name: Replace secrets in script.js
         run: |
