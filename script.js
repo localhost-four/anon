@@ -1,15 +1,15 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey, limitToLast, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
 
-// Firebase configuration
+// Настройки Firebase
 const firebaseConfig = {
-    apiKey: "AIzaSyBkyleR5JAFnemXVcDbpb06R11LekamqcE",
-    authDomain: "word-d249c.firebaseapp.com",
-    databaseURL: "https://word-d249c-default-rtdb.firebaseio.com/",
-    projectId: "word-d249c",
-    storageBucket: "word-d249c.appspot.com",
-    messagingSenderId: "6748384848",
-    appId: "1:6748384848:web:e9600b084cfdcc35f26b55"
+	apiKey: window.REACT_APP_API_KEY,
+	authDomain: window.REACT_APP_AUTH_DOMAIN,
+    databaseURL: window.REACT_APP_URL,
+	projectId: window.REACT_APP_PROJECT_ID,
+	storageBucket: window.REACT_APP_STORAGE_BUCKET,
+	messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
+	appId: window.REACT_APP_APP_ID,
 };
 
 // Initialize Firebase
