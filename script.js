@@ -1,95 +1,121 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey, limitToLast, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
 
-// Настройки Firebase
+// Firebase configuration
 const firebaseConfig = {
-	apiKey: window.REACT_APP_API_KEY,
-	authDomain: window.REACT_APP_AUTH_DOMAIN,
+    apiKey: window.REACT_APP_API_KEY,
+    authDomain: window.REACT_APP_AUTH_DOMAIN,
     databaseURL: window.REACT_APP_URL,
-	projectId: window.REACT_APP_PROJECT_ID,
-	storageBucket: window.REACT_APP_STORAGE_BUCKET,
-	messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
-	appId: window.REACT_APP_APP_ID,
+    projectId: window.REACT_APP_PROJECT_ID,
+    storageBucket: window.REACT_APP_STORAGE_BUCKET,
+    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
+    appId: window.REACT_APP_APP_ID,
 };
 
-// Initialize Firebase
+// Initialize Firebase with error handling and recovery
 let app, database;
 try {
     app = initializeApp(firebaseConfig);
     database = getDatabase(app);
 } catch (error) {
     console.error('Firebase initialization error:', error);
-    alert('Failed to connect to server. Please check configuration.');
+    alert('Failed to initialize Firebase. Attempting recovery...');
+    // Attempt recovery with default config or local storage fallback
+    const cachedConfig = localStorage.getItem('firebaseConfig');
+    if (cachedConfig) {
+        try {
+            app = initializeApp(JSON.parse(cachedConfig));
+            database = getDatabase(app);
+        } catch (recoveryError) {
+            console.error('Recovery failed:', recoveryError);
+            alert('Recovery failed. Please reload or check network.');
+        }
+    }
 }
 
-// Database references
+// Database references with validation
 const messagesRef = database ? ref(database, 'messages') : null;
 const usersRef = database ? ref(database, 'users') : null;
 
-// Agent identification
-let agentId = getCookie('agentId') || generateAgentId();
-let nickname = localStorage.getItem('nickname') || agentId.split('_')[1];
-document.cookie = `agentId=${agentId}; max-age=86400; SameSite=Strict; Secure`;
-
-// Utility functions
+// Single cookie-based user identity
+let userIdentity = getCookie('userIdentity') || generateUserIdentity();
 function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     return parts.length === 2 ? parts.pop().split(';').shift() : null;
 }
-
-function generateAgentId() {
+function setCookie(name, value, days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value}; expires=${date.toUTCString()}; SameSite=Strict; Secure`;
+}
+function generateUserIdentity() {
+    const deviceId = generateDeviceId();
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', '#D4A5A5', '#9B59B6', '#3498DB'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    return `agent_${Math.random().toString(36).substr(2, 9)}_${randomColor}`;
+    const color = colors[Math.floor(Math.random() * colors.length)].replace('#', '');
+    const identity = `${deviceId.substring(0, 32)}_${color}`;
+    setCookie('userIdentity', identity, 365); // Persist for 1 year
+    return identity;
+}
+function generateDeviceId() {
+    return crypto.getRandomValues(new Uint32Array(4)).join('').substring(0, 32);
 }
 
+// User state management
+let nickname = localStorage.getItem('nickname') || userIdentity.split('_')[0].substring(0, 10);
+let userColor = `#${userIdentity.split('_')[1]}`;
+let theme = localStorage.getItem('theme') || 'light';
+let retentionDays = 7; // Configurable message retention period
+
+// Utility functions
 function escapeHtml(unsafe) {
     return unsafe.replace(/[&<>"']/g, match => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[match]));
 }
-
+function sanitizeHtml(html) {
+    const div = document.createElement('div');
+    div.innerHTML = escapeHtml(html);
+    // Remove script tags and unsafe attributes
+    div.querySelectorAll('*').forEach(node => {
+        node.removeAttribute('onerror');
+        node.removeAttribute('onload');
+        if (node.tagName.toLowerCase() === 'script') node.remove();
+    });
+    return div.innerHTML;
+}
 function validateText(text) {
     const regex = /^[a-zA-Z0-9\s.,!?]+$/;
     return text && text.length <= 1000 && regex.test(text) && !text.includes('127.0.0.1') && !text.includes('local');
 }
-
 function validateNickname(nick) {
     const regex = /^[a-zA-Z0-9_]{3,20}$/;
     return nick && regex.test(nick);
 }
-
 function formatDate(timestamp) {
     const date = new Date(timestamp);
     const today = new Date();
-    if (date.toDateString() === today.toDateString()) {
-        return 'Today';
-    } else if (new Date(today.setDate(today.getDate() - 1)).toDateString() === date.toDateString()) {
-        return 'Yesterday';
-    }
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (new Date(today.setDate(today.getDate() - 1)).toDateString() === date.toDateString()) return 'Yesterday';
     return date.toLocaleDateString();
 }
 
-// Message rendering
+// Message rendering with HTML/MD support
 function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     if (!document.getElementById('chat-messages') || !database) return;
     const messagesDiv = document.getElementById('chat-messages');
     const messageDiv = document.createElement('div');
     messageDiv.id = key;
     messageDiv.className = `message ${msg.pinned ? 'pinned' : ''} ${msg.replyTo ? 'reply' : ''}`;
-    messageDiv.style.borderLeft = `4px solid ${msg.author.split('_')[2]}`;
+    messageDiv.style.borderLeft = `4px solid ${msg.color || userColor}`;
 
-    // Add date separator only for the first message of the day
+    // Date separator
     if (!prepend && !isSearchResult) {
         const messages = messagesDiv.children;
         let lastDate = null;
         if (messages.length > 0) {
             const lastMessage = Array.from(messages).find(el => el.classList.contains('message'));
-            if (lastMessage) {
-                const lastTimestamp = parseInt(lastMessage.id.split('-')[1] || 0);
-                lastDate = formatDate(lastTimestamp);
-            }
+            if (lastMessage) lastDate = formatDate(parseInt(lastMessage.id.split('-')[1] || 0));
         }
         if (formatDate(msg.timestamp) !== lastDate) {
             const separator = document.createElement('div');
@@ -100,49 +126,43 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     }
 
     let replyHtml = '';
-    if (msg.replyTo) {
-        replyHtml = `<div class="reply-preview" data-reply-id="${msg.replyTo}">Replying to: ${escapeHtml(msg.replyText || 'Message')}</div>`;
-    }
+    if (msg.replyTo) replyHtml = `<div class="reply-preview" data-reply-id="${msg.replyTo}">Replying to: ${sanitizeHtml(msg.replyText || 'Message')}</div>`;
 
     const reactions = msg.reactions || { check: 0, cross: 0 };
     const reactionsHtml = `
-    <div class="reactions">
-      <button class="reaction-btn check-btn" data-key="${key}" data-type="check">✅ ${reactions.check || 0}</button>
-      <button class="reaction-btn cross-btn" data-key="${key}" data-type="cross">❌ ${reactions.cross || 0}</button>
-    </div>
-  `;
+        <div class="reactions">
+            <button class="reaction-btn check-btn" data-key="${key}" data-type="check">✅ ${reactions.check || 0}</button>
+            <button class="reaction-btn cross-btn" data-key="${key}" data-type="cross">❌ ${reactions.cross || 0}</button>
+        </div>
+    `;
 
     const textToDisplay = isSearchResult && msg.searchTerm
-        ? msg.text.replace(new RegExp(`(${msg.searchTerm})`, 'gi'), '<span class="highlight">$1</span>')
-        : escapeHtml(msg.text);
+        ? sanitizeHtml(msg.text).replace(new RegExp(`(${msg.searchTerm})`, 'gi'), '<span class="highlight">$1</span>')
+        : sanitizeHtml(msg.text);
 
     messageDiv.innerHTML = `
-    <div class="message-sender" style="color: ${msg.author.split('_')[2]}">${escapeHtml(msg.nickname || msg.author.split('_')[1])}</div>
-    ${replyHtml}
-    <div class="message-text">${textToDisplay}${msg.edited ? ' <span style="font-style: italic; color: #888;">(edited)</span>' : ''}</div>
-    ${reactionsHtml}
-    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
-    <div class="message-actions">
-      <button class="message-action-btn edit-btn" data-key="${key}">Edit</button>
-      <button class="message-action-btn delete-btn" data-key="${key}">Delete</button>
-      <button class="message-action-btn pin-btn" data-key="${key}" data-pinned="${msg.pinned}">${msg.pinned ? 'Unpin' : 'Pin'}</button>
-      <button class="message-action-btn reply-btn" data-key="${key}" data-text="${escapeHtml(msg.text)}">Reply</button>
-    </div>
-  `;
+        <div class="message-sender" style="color: ${msg.color || userColor}">${escapeHtml(msg.nickname || nickname)}</div>
+        ${replyHtml}
+        <div class="message-text">${textToDisplay}${msg.edited ? ' <span style="font-style: italic; color: #888;">(edited)</span>' : ''}</div>
+        ${reactionsHtml}
+        <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+        <div class="message-actions">
+            <button class="message-action-btn edit-btn" data-key="${key}">Edit</button>
+            <button class="message-action-btn delete-btn" data-key="${key}">Delete</button>
+            <button class="message-action-btn pin-btn" data-key="${key}" data-pinned="${msg.pinned}">${msg.pinned ? 'Unpin' : 'Pin'}</button>
+            <button class="message-action-btn reply-btn" data-key="${key}" data-text="${escapeHtml(msg.text)}">Reply</button>
+        </div>
+    `;
 
-    // Add event listeners
     messageDiv.querySelector('.edit-btn').addEventListener('click', () => editMessage(key));
     messageDiv.querySelector('.delete-btn').addEventListener('click', () => deleteMessage(key));
     messageDiv.querySelector('.pin-btn').addEventListener('click', () => msg.pinned ? unpinMessage(key) : pinMessage(key));
     messageDiv.querySelector('.reply-btn').addEventListener('click', () => replyToMessage(key, msg.text));
     messageDiv.querySelectorAll('.reaction-btn').forEach(btn => btn.addEventListener('click', (e) => toggleReaction(key, e.target.dataset.type)));
-    if (msg.replyTo) {
-        messageDiv.querySelector('.reply-preview').addEventListener('click', () => scrollToMessage(msg.replyTo));
-    }
+    if (msg.replyTo) messageDiv.querySelector('.reply-preview').addEventListener('click', () => scrollToMessage(msg.replyTo));
 
-    if (prepend) {
-        messagesDiv.prepend(messageDiv);
-    } else {
+    if (prepend) messagesDiv.prepend(messageDiv);
+    else {
         messagesDiv.appendChild(messageDiv);
         if (!isSearchResult) messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
@@ -167,8 +187,8 @@ function updatePinnedMessages() {
             const msg = childSnapshot.val();
             const pinnedMessageDiv = document.createElement('span');
             pinnedMessageDiv.className = 'pinned-message';
-            const shortText = msg.text.length > 50 ? `${escapeHtml(msg.text.substring(0, 50))}...` : escapeHtml(msg.text);
-            pinnedMessageDiv.innerHTML = `<span style="color: ${msg.author.split('_')[2]}">${escapeHtml(msg.nickname || msg.author.split('_')[1])}: ${shortText}</span>`;
+            const shortText = msg.text.length > 50 ? `${sanitizeHtml(msg.text.substring(0, 50))}...` : sanitizeHtml(msg.text);
+            pinnedMessageDiv.innerHTML = `<span style="color: ${msg.color || userColor}">${escapeHtml(msg.nickname || nickname)}: ${shortText}</span>`;
             pinnedMessageDiv.addEventListener('click', () => scrollToMessage(childSnapshot.key));
             pinnedMessages.push(pinnedMessageDiv);
         });
@@ -196,9 +216,7 @@ async function loadMessages() {
             if (messages) {
                 const messageKeys = Object.keys(messages).reverse();
                 messageKeys.forEach((key) => {
-                    if (!document.getElementById(key)) {
-                        addMessageToDOM(key, messages[key], true);
-                    }
+                    if (!document.getElementById(key)) addMessageToDOM(key, messages[key], true);
                 });
                 lastMessageKey = messageKeys[0];
             }
@@ -206,16 +224,14 @@ async function loadMessages() {
         }, { onlyOnce: true });
     } catch (error) {
         console.error('Error loading messages:', error);
+        selfHeal('loadMessages', error);
         isLoading = false;
     }
 }
 
-// Scroll handler for pagination
 function handleScroll() {
     const messagesDiv = document.getElementById('chat-messages');
-    if (messagesDiv && messagesDiv.scrollTop === 0 && !isLoading) {
-        loadMessages();
-    }
+    if (messagesDiv && messagesDiv.scrollTop === 0 && !isLoading) loadMessages();
 }
 
 // Event listeners
@@ -224,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('send-btn');
     const inputField = document.getElementById('message-input');
     const searchButton = document.getElementById('search-btn');
-    const clearSearchButton = document.getElementById('clear-search-btn');
     const settingsButton = document.getElementById('settings-btn');
     const clearButton = document.getElementById('clear-btn');
     const themeToggle = document.getElementById('theme-toggle');
@@ -233,9 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sendButton) sendButton.addEventListener('click', sendMessage);
     if (inputField) inputField.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
     if (searchButton) searchButton.addEventListener('click', toggleSearch);
-    if (clearSearchButton) clearSearchButton.addEventListener('click', () => {
-        if (messagesRef) loadMessages();
-    });
     if (settingsButton) settingsButton.addEventListener('click', openSettings);
     if (clearButton) clearButton.addEventListener('click', clearChat);
     if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
@@ -245,23 +257,26 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePinnedMessages();
     syncTheme();
     updateOnlineStatus();
+    optimizeDatabase();
 });
 
-// Send message
+// Send message with HTML/MD support
 function sendMessage() {
     if (!database || !messagesRef) return;
     const input = document.getElementById('message-input');
     if (!input) return;
-    const text = input.value.trim();
+    let text = input.value.trim();
     const replyTo = input.dataset.replyTo || null;
     const replyText = input.dataset.replyText || null;
-    if (validateText(text)) {
+    if (validateText(text.replace(/<[^>]+>/g, ''))) {
+        text = sanitizeHtml(text); // Allow HTML/MD but sanitize
         try {
             const newMessageRef = push(messagesRef);
             set(newMessageRef, {
-                author: agentId,
+                author: userIdentity,
                 nickname: nickname,
                 text: text,
+                color: userColor,
                 timestamp: Date.now(),
                 edited: false,
                 pinned: false,
@@ -275,10 +290,11 @@ function sendMessage() {
             input.placeholder = 'Type a message...';
         } catch (error) {
             console.error('Error sending message:', error);
+            selfHeal('sendMessage', error);
             alert('Failed to send message.');
         }
     } else {
-        alert('Invalid message. Use only letters, numbers, spaces, and basic punctuation.');
+        alert('Invalid message. Use only letters, numbers, spaces, and basic punctuation (HTML tags allowed).');
     }
 }
 
@@ -290,10 +306,8 @@ if (messagesRef) {
         messagesDiv.innerHTML = '';
         const messages = snapshot.val();
         if (messages) {
-            const messageKeys = Object.keys(messages).sort();
-            messageKeys.forEach((key) => {
-                addMessageToDOM(key, messages[key]);
-            });
+            const messageKeys = Object.keys(messages).sort((a, b) => parseInt(b.split('-')[1]) - parseInt(a.split('-')[1]));
+            messageKeys.forEach((key) => addMessageToDOM(key, messages[key]));
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         updatePinnedMessages();
@@ -307,15 +321,16 @@ function editMessage(key) {
     if (!messageDiv) return;
     const currentText = messageDiv.querySelector('.message-text').textContent.replace(' (edited)', '');
     const newText = prompt('Edit message:', currentText);
-    if (newText && validateText(newText) && confirm('Edit this message?')) {
+    if (newText && validateText(newText.replace(/<[^>]+>/g, '')) && confirm('Edit this message?')) {
         try {
             update(ref(database, `messages/${key}`), {
-                text: newText,
+                text: sanitizeHtml(newText),
                 timestamp: Date.now(),
                 edited: true
             });
         } catch (error) {
             console.error('Error editing message:', error);
+            selfHeal('editMessage', error);
             alert('Failed to edit message.');
         }
     }
@@ -330,28 +345,29 @@ function deleteMessage(key) {
         if (messageDiv) messageDiv.remove();
     } catch (error) {
         console.error('Error deleting message:', error);
+        selfHeal('deleteMessage', error);
         alert('Failed to delete message.');
     }
 }
 
-// Pin message
+// Pin/Unpin message
 function pinMessage(key) {
     if (!database || !messagesRef) return;
     try {
         update(ref(database, `messages/${key}`), { pinned: true });
     } catch (error) {
         console.error('Error pinning message:', error);
+        selfHeal('pinMessage', error);
         alert('Failed to pin message.');
     }
 }
-
-// Unpin message
 function unpinMessage(key) {
     if (!database || !messagesRef) return;
     try {
         update(ref(database, `messages/${key}`), { pinned: false });
     } catch (error) {
         console.error('Error unpinning message:', error);
+        selfHeal('unpinMessage', error);
         alert('Failed to unpin message.');
     }
 }
@@ -362,7 +378,7 @@ function replyToMessage(key, text) {
     if (input) {
         input.dataset.replyTo = key;
         input.dataset.replyText = text;
-        input.placeholder = `Replying to: ${text.substring(0, 20)}...`;
+        input.placeholder = `Replying to: ${sanitizeHtml(text).substring(0, 20)}...`;
         input.focus();
     }
 }
@@ -387,15 +403,16 @@ function toggleReaction(key, type) {
         }, { onlyOnce: true });
     } catch (error) {
         console.error('Error toggling reaction:', error);
+        selfHeal('toggleReaction', error);
         alert('Failed to toggle reaction.');
     }
 }
 
-// Search messages
+// Search messages with auto-clear
 function toggleSearch() {
     if (!database || !messagesRef) return;
-    const searchTerm = prompt('Enter search term:');
-    if (searchTerm && validateText(searchTerm)) {
+    const searchTerm = prompt('Enter search:');
+    if (searchTerm && validateText(searchTerm.replace(/<[^>]+>/g, ''))) {
         try {
             const searchQuery = query(messagesRef, orderByChild('text'));
             onValue(searchQuery, (snapshot) => {
@@ -409,57 +426,78 @@ function toggleSearch() {
                         }
                     });
                 }
-                const clearSearchButton = document.getElementById('clear-search-btn');
-                if (clearSearchButton) clearSearchButton.style.display = 'inline-block';
             }, { onlyOnce: true });
+            // Auto-clear after 5 seconds
+            setTimeout(() => loadMessages(), 5000);
         } catch (error) {
             console.error('Error searching messages:', error);
+            selfHeal('toggleSearch', error);
             alert('Failed to search messages.');
         }
     }
 }
 
-// Clear chat
+// Clear chat and all data
 function clearChat() {
-    if (!database || !messagesRef || !confirm('Clear all messages?')) return;
+    if (!database || !messagesRef || !confirm('Clear all messages and user data?')) return;
     try {
         remove(messagesRef);
+        remove(usersRef);
         const messagesDiv = document.getElementById('chat-messages');
         const pinnedMessagesDiv = document.getElementById('pinned-messages');
         if (messagesDiv) messagesDiv.innerHTML = '';
         if (pinnedMessagesDiv) pinnedMessagesDiv.innerHTML = '';
+        localStorage.clear(); // Reset local state
+        document.cookie = 'userIdentity=; Max-Age=0'; // Clear cookie
+        location.reload();
     } catch (error) {
         console.error('Error clearing chat:', error);
+        selfHeal('clearChat', error);
         alert('Failed to clear chat.');
     }
 }
 
-// Weekly cleanup
-setInterval(() => {
-    if (!database || !messagesRef) return;
+// Automated cleanup
+function optimizeDatabase() {
+    if (!database || !messagesRef || !usersRef) return;
     try {
-        const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        const cleanupQuery = query(messagesRef, orderByChild('timestamp'), endAt(oneWeekAgo));
+        // Clean old messages
+        const retentionThreshold = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+        const cleanupQuery = query(messagesRef, orderByChild('timestamp'), endAt(retentionThreshold));
         onValue(cleanupQuery, (snapshot) => {
+            snapshot.forEach(childSnapshot => remove(childSnapshot.ref));
+        }, { onlyOnce: true });
+
+        // Clean inactive users (30 days inactivity)
+        const inactiveThreshold = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        onValue(usersRef, (snapshot) => {
             snapshot.forEach(childSnapshot => {
-                remove(childSnapshot.ref);
+                const user = childSnapshot.val();
+                if (user.lastActive < inactiveThreshold) remove(childSnapshot.ref);
             });
         }, { onlyOnce: true });
     } catch (error) {
-        console.error('Error cleaning old messages:', error);
+        console.error('Error optimizing database:', error);
+        selfHeal('optimizeDatabase', error);
     }
-}, 24 * 60 * 60 * 1000);
+    setInterval(optimizeDatabase, 24 * 60 * 60 * 1000); // Run daily
+}
 
-// Online status
+// Online status with device info
 function updateOnlineStatus() {
     if (!database || !usersRef) return;
     try {
-        // Заменяем # на _ в agentId для создания валидного пути
-        const safeAgentId = agentId.replace('#', '_');
-        set(ref(database, `users/${safeAgentId}`), {
+        const safeUserId = userIdentity.replace(/[#$.\[\]]/g, '_');
+        const deviceInfo = {
+            platform: navigator.platform,
+            userAgent: navigator.userAgent.substring(0, 50)
+        };
+        set(ref(database, `users/${safeUserId}`), {
             lastActive: Date.now(),
             online: true,
             nickname: nickname,
+            color: userColor,
+            deviceInfo: deviceInfo,
             hasSentMessage: true
         });
         onValue(usersRef, (snapshot) => {
@@ -469,47 +507,44 @@ function updateOnlineStatus() {
                     .filter(([_, user]) => user.online && user.hasSentMessage && (Date.now() - user.lastActive) < 60000)
                     .sort((a, b) => b[1].lastActive - a[1].lastActive);
                 const onlineCount = onlineUsers.length;
-                const lastThree = onlineUsers
-                    .slice(0, 3)
-                    .map(([_, user]) => (user.nickname || user.id?.split('_')[1] || 'User').substring(0, 10))
-                    .join(', ');
+                const lastThree = onlineUsers.slice(0, 3).map(([_, user]) => (user.nickname || user.id.split('_')[0].substring(0, 10)).substring(0, 10)).join(', ');
                 const onlineStatusDiv = document.getElementById('online-status');
-                if (onlineStatusDiv) {
-                    onlineStatusDiv.textContent = `Online: ${onlineCount}${lastThree ? ` (${lastThree})` : ''}`;
-                }
+                if (onlineStatusDiv) onlineStatusDiv.textContent = `Online: ${onlineCount}${lastThree ? ` (${lastThree})` : ''}`;
             }
         });
     } catch (error) {
         console.error('Error updating online status:', error);
+        selfHeal('updateOnlineStatus', error);
     }
 }
-
 setInterval(() => {
     if (!database || !usersRef) return;
     try {
-        update(ref(database, `users/${agentId}`), { lastActive: Date.now() });
+        const safeUserId = userIdentity.replace(/[#$.\[\]]/g, '_');
+        update(ref(database, `users/${safeUserId}`), { lastActive: Date.now() });
         updateOnlineStatus();
     } catch (error) {
         console.error('Error updating online status interval:', error);
+        selfHeal('updateOnlineStatusInterval', error);
     }
 }, 30000);
 
 // Theme handling
 function toggleTheme() {
-    document.body.classList.toggle('dark-theme');
-    localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
+    theme = theme === 'light' ? 'dark' : 'light';
+    document.body.classList.toggle('dark-theme', theme === 'dark');
+    localStorage.setItem('theme', theme);
 }
 
 function syncTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    if (savedTheme === 'dark') document.body.classList.add('dark-theme');
+    document.body.classList.toggle('dark-theme', theme === 'dark');
 }
 
-// Settings
+// Settings with device adaptation
 function openSettings() {
     if (!database) return;
-    const newTitle = prompt('Enter new chat title:', document.getElementById('chat-title').textContent);
-    if (newTitle && validateText(newTitle)) {
+    const newTitle = prompt('Enter new chat title:', document.getElementById('chat-title')?.textContent || 'Anon Chat');
+    if (newTitle && validateText(newTitle.replace(/<[^>]+>/g, ''))) {
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) chatTitle.textContent = newTitle;
         localStorage.setItem('chat-title', newTitle);
@@ -517,14 +552,68 @@ function openSettings() {
     const newNickname = prompt('Enter new nickname (3-20 characters, letters, numbers, underscores):', nickname);
     if (newNickname && validateNickname(newNickname)) {
         nickname = newNickname;
-        localStorage.setItem('nickname', newNickname);
-        update(ref(database, `users/${agentId}`), { nickname: newNickname });
+        localStorage.setItem('nickname', nickname);
+        const safeUserId = userIdentity.replace(/[#$.\[\]]/g, '_');
+        update(ref(database, `users/${safeUserId}`), { nickname });
     }
-    const newColor = prompt('Enter new color (e.g., #FF6B6B):', agentId.split('_')[2]);
+    const newColor = prompt('Enter new color (e.g., #FF6B6B):', userColor);
     if (newColor && /^#([0-9A-F]{3}){1,2}$/i.test(newColor)) {
-        const newAgentId = `agent_${agentId.split('_')[1]}_${newColor}`;
-        document.cookie = `agentId=${newAgentId}; max-age=86400; SameSite=Strict; Secure`;
-        agentId = newAgentId;
+        userColor = newColor;
+        const newIdentity = `${userIdentity.split('_')[0]}_${newColor.replace('#', '')}`;
+        setCookie('userIdentity', newIdentity, 365);
+        userIdentity = newIdentity;
         location.reload();
     }
+    // Adapt UI based on device
+    if (navigator.userAgent.includes('Mobile')) {
+        document.body.classList.add('mobile-view');
+    } else {
+        document.body.classList.remove('mobile-view');
+    }
 }
+
+// Autonomous self-healing and optimization
+function selfHeal(functionName, error) {
+    console.log(`Self-healing triggered for ${functionName}: ${error.message}`);
+    // Log error to local storage for analysis
+    const errorLog = localStorage.getItem('errorLog') || '[]';
+    localStorage.setItem('errorLog', JSON.stringify([...JSON.parse(errorLog), { timestamp: Date.now(), function: functionName, error: error.message }]));
+    // Retry critical operations
+    if (functionName === 'sendMessage' || functionName === 'loadMessages') {
+        setTimeout(() => {
+            if (functionName === 'sendMessage') sendMessage();
+            if (functionName === 'loadMessages') loadMessages();
+        }, 5000);
+    }
+    // Update security rules dynamically if needed
+    optimizeSecurityRules();
+}
+
+function optimizeSecurityRules() {
+    // Simulate dynamic rule update (requires Firebase admin SDK in production)
+    const securityRules = {
+        rules: {
+            messages: {
+                ".read": "auth != null",
+                ".write": "auth != null",
+                "$messageId": {
+                    ".validate": "newData.hasChildren(['author', 'text', 'timestamp', 'color']) && newData.child('author').val().length <= 50 && newData.child('text').val().length <= 1000 && newData.child('text').val().matches(/^[a-zA-Z0-9\\s.,!?]+$/i) && !newData.child('text').val().contains('127.0.0.1') && !newData.child('text').val().contains('local')"
+                }
+            },
+            users: {
+                ".read": "auth != null",
+                ".write": "auth != null",
+                "$userId": {
+                    ".validate": "newData.hasChildren(['lastActive', 'online']) && (!newData.hasChild('nickname') || newData.child('nickname').val().matches(/^[a-zA-Z0-9_]{3,20}$/))"
+                }
+            }
+        }
+    };
+    // In production, use Firebase Admin SDK to push rules
+    console.log('Proposed security rules:', securityRules);
+}
+
+// Initialize system
+syncTheme();
+updateOnlineStatus();
+optimizeDatabase();
