@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Защита от XSS с помощью Content Security Policy (CSP) -->
+    <meta http-equiv="Content-Security-Policy" content="
+            font-src 'self'; 
+            object-src 'none'; 
+            frame-ancestors 'none'; 
+            base-uri 'self'; 
+            form-action 'self';
+        ">
+
+    <!-- Защита от кликджекинга -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <!-- Установка заголовка X-Content-Type-Options -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+    <meta name="referrer" content="no-referrer">
+    <meta name="HandheldFriendly" content="True">
+
+    <!-- Иконки для мобильных устройств -->
+    <link rel="icon" href="0.webp">
+    <link rel="apple-touch-icon" href="0.webp">
+    <link rel="icon" sizes="192x192" href="0.webp">
+    <link rel="icon" sizes="512x512" href="0.webp">
+
+    <meta http-equiv="Permissions-Policy"
+        content="web-share=(), midi=(), gyroscope=(), fullscreen=(), document-domain=(), notifications=(self), popups=(self)">
+
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebaseio.com; connect-src 'self' wss://*.firebaseio.com; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self';">
+    <title>Anon Chat</title>
+
+    <!-- Установка кодировки и масштаба -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Мета-теги SEO для обоих языков -->
+    <meta name="description"
+        content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta name="keywords"
+        content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta name="author" content="/">
+    
+    <!-- Open Graph для социальных сетей (Facebook, LinkedIn, WhatsApp) -->
+    <meta property="og:title" content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta property="og:description"
+        content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta property="og:image" content="0.webp">
+    <meta property="og:url" content="/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Anon Chat">
+    
+    <!-- Мета-теги для Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta name="twitter:description"
+        content="Anon Chat - personal chat expanded to public access with all functions.">
+    <meta name="twitter:image" content="0.webp">
+    <meta name="twitter:url" content="/">
+    
+    <!-- Robot Follow -->
+    <meta name="robots" content="index, follow">
+    <meta name="language" content="en">
+    <meta name="rating" content="General">
+    <meta name="theme-color" content="#ffffff">
+
+    <link rel="stylesheet" href="styles.css" loading="lazy">
+    <script type="module" src="script.js" loading="lazy"></script>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2 id="chat-title">Anon Chat</h2>
+            <div class="header-actions">
+                <button id="search-btn" class="action-btn">Find</button>
+                <button id="clear-search-btn" class="action-btn" style="display: none;">Clear Search</button>
+                <button id="settings-btn" class="action-btn">Set</button>
+                <button id="clear-btn" class="action-btn">Clean</button>
+                <button id="theme-toggle" class="action-btn">Theme</button>
+            </div>
+            <div id="online-status">Online: 0</div>
+        </div>
+        <div id="pinned-messages"></div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input">
+            <input type="text" id="message-input" class="input-field" placeholder="Type a message...">
+            <button id="send-btn" class="send-button">Send</button>
+        </div>
+    </div>
+</body>
+
+</html>
