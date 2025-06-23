@@ -60,7 +60,9 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: './'
-          exclude: ['.git', '.github', 'node_modules', '*.md', '.gitignore']
+          exclude: ['.git', '.github', 'node_modules', '*.md', '.gitignore', '*.log']
+          run: |
+            git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch .env' -- --all
 
       - name: Deploy to GitHub Pages
         id: deployment
