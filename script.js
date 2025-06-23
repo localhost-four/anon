@@ -3,14 +3,24 @@ import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: window.REACT_APP_API_KEY,
-    authDomain: window.REACT_APP_AUTH_DOMAIN,
-    databaseURL: window.REACT_APP_URL,
-    projectId: window.REACT_APP_PROJECT_ID,
-    storageBucket: window.REACT_APP_STORAGE_BUCKET,
-    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
-    appId: window.REACT_APP_APP_ID,
+    apiKey: "window.REACT_APP_API_KEY",
+    authDomain: "window.REACT_APP_AUTH_DOMAIN",
+    databaseURL: "window.REACT_APP_URL",
+    projectId: "window.REACT_APP_PROJECT_ID",
+    storageBucket: "window.REACT_APP_STORAGE_BUCKET",
+    messagingSenderId: "window.REACT_APP_MESSAGING_SENDER_ID",
+    appId: "window.REACT_APP_APP_ID",
 };
+
+// Validate Firebase configuration
+function validateFirebaseConfig(config) {
+    const requiredKeys = ['apiKey', 'authDomain', 'databaseURL', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+    for (const key of requiredKeys) {
+        if (!config[key] || config[key].includes('window.REACT_APP_')) {
+            throw new Error(`Missing or invalid Firebase config key: ${key}`);
+        }
+    }
+}
 
 // Initialize Firebase with error handling and recovery
 let app, database;
@@ -65,7 +75,7 @@ function generateDeviceId() {
 let nickname = localStorage.getItem('nickname') || userIdentity.split('_')[0].substring(0, 10);
 let userColor = `#${userIdentity.split('_')[1]}`;
 let theme = localStorage.getItem('theme') || 'light';
-let retentionDays = 7; // Configurable message retention period
+let retentionDays = 6; // Configurable message retention period
 
 // Utility functions
 function escapeHtml(unsafe) {
@@ -565,7 +575,7 @@ function openSettings() {
         location.reload();
     }
     // Adapt UI based on device
-    if (navigator.userAgent.includes('Mobile')) {
+    if (navigator.userAgent.includes('Mobile') || navigator.userAgent.includes('Ang')) {
         document.body.classList.add('mobile-view');
     } else {
         document.body.classList.remove('mobile-view');
