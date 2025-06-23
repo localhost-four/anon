@@ -1,4 +1,3 @@
-
 name: Deploy static content to Pages and Firestore
 
 on:
@@ -24,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Полная история для фильтрации
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -48,21 +49,29 @@ jobs:
 
       - name: Replace secrets in script.js
         run: |
-          sed -i "s|window.REACT_APP_API_KEY|'${{ secrets.REACT_APP_API_KEY }}'|g" script.js
-          sed -i "s|window.REACT_APP_AUTH_DOMAIN|'${{ secrets.REACT_APP_AUTH_DOMAIN }}'|g" script.js
-          sed -i "s|window.REACT_APP_PROJECT_ID|'${{ secrets.REACT_APP_PROJECT_ID }}'|g" script.js
-          sed -i "s|window.REACT_APP_STORAGE_BUCKET|'${{ secrets.REACT_APP_STORAGE_BUCKET }}'|g" script.js
-          sed -i "s|window.REACT_APP_MESSAGING_SENDER_ID|'${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}'|g" script.js
-          sed -i "s|window.REACT_APP_APP_ID|'${{ secrets.REACT_APP_APP_ID }}'|g" script.js
-          sed -i "s|window.REACT_APP_URL|'${{ secrets.REACT_APP_URL }}'|g" script.js
+          sed -i "s|__REACT_APP_API_KEY__|'${{ secrets.REACT_APP_API_KEY }}'|g" script.js
+          sed -i "s|__REACT_APP_AUTH_DOMAIN__|'${{ secrets.REACT_APP_AUTH_DOMAIN }}'|g" script.js
+          sed -i "s|__REACT_APP_PROJECT_ID__|'${{ secrets.REACT_APP_PROJECT_ID }}'|g" script.js
+          sed -i "s|__REACT_APP_STORAGE_BUCKET__|'${{ secrets.REACT_APP_STORAGE_BUCKET }}'|g" script.js
+          sed -i "s|__REACT_APP_MESSAGING_SENDER_ID__|'${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}'|g" script.js
+          sed -i "s|__REACT_APP_APP_ID__|'${{ secrets.REACT_APP_APP_ID }}'|g" script.js
+          sed -i "s|__REACT_APP_URL__|'${{ secrets.REACT_APP_URL }}'|g" script.js
+
+      - name: Clean sensitive files
+        run: |
+          rm -f .env *.log *.md
+          if [ -f .gitignore ]; then
+            echo "Ensuring .env is in .gitignore"
+            echo ".env" >> .gitignore
+            echo "*.log" >> .gitignore
+            echo "node_modules/" >> .gitignore
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './'
-          exclude: ['.git', '.github', 'node_modules', '*.md', '.gitignore', '*.log']
-          run: |
-            git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch .env' -- --all
+          exclude: ['.git', '.github', 'node_modules', '*.md', '*.log', '.gitignore', '.env']
 
       - name: Deploy to GitHub Pages
         id: deployment
