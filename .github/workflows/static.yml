@@ -1,3 +1,4 @@
+
 name: Deploy static content to Pages and Firestore
 
 on:
@@ -32,22 +33,34 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Verify Secrets
+        run: |
+          if [ -z "${{ secrets.REACT_APP_API_KEY }}" ] || \
+             [ -z "${{ secrets.REACT_APP_AUTH_DOMAIN }}" ] || \
+             [ -z "${{ secrets.REACT_APP_PROJECT_ID }}" ] || \
+             [ -z "${{ secrets.REACT_APP_STORAGE_BUCKET }}" ] || \
+             [ -z "${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}" ] || \
+             [ -z "${{ secrets.REACT_APP_APP_ID }}" ] || \
+             [ -z "${{ secrets.REACT_APP_URL }}" ]; then
+            echo "Error: One or more secrets are missing!"
+            exit 1
+          fi
+
       - name: Replace secrets in script.js
         run: |
-          sed -i 's|window.REACT_APP_API_KEY|${{ secrets.REACT_APP_API_KEY }}|g' script.js
-          sed -i 's|window.REACT_APP_AUTH_DOMAIN|${{ secrets.REACT_APP_AUTH_DOMAIN }}|g' script.js
-          sed -i 's|window.REACT_APP_PROJECT_ID|${{ secrets.REACT_APP_PROJECT_ID }}|g' script.js
-          sed -i 's|window.REACT_APP_STORAGE_BUCKET|${{ secrets.REACT_APP_STORAGE_BUCKET }}|g' script.js
-          sed -i 's|window.REACT_APP_MESSAGING_SENDER_ID|${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}|g' script.js
-          sed -i 's|window.REACT_APP_APP_ID|${{ secrets.REACT_APP_APP_ID }}|g' script.js
-          sed -i 's|window.REACT_APP_URL|${{ secrets.REACT_APP_URL }}|g' script.js
-
-
+          sed -i "s|window.REACT_APP_API_KEY|'${{ secrets.REACT_APP_API_KEY }}'|g" script.js
+          sed -i "s|window.REACT_APP_AUTH_DOMAIN|'${{ secrets.REACT_APP_AUTH_DOMAIN }}'|g" script.js
+          sed -i "s|window.REACT_APP_PROJECT_ID|'${{ secrets.REACT_APP_PROJECT_ID }}'|g" script.js
+          sed -i "s|window.REACT_APP_STORAGE_BUCKET|'${{ secrets.REACT_APP_STORAGE_BUCKET }}'|g" script.js
+          sed -i "s|window.REACT_APP_MESSAGING_SENDER_ID|'${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}'|g" script.js
+          sed -i "s|window.REACT_APP_APP_ID|'${{ secrets.REACT_APP_APP_ID }}'|g" script.js
+          sed -i "s|window.REACT_APP_URL|'${{ secrets.REACT_APP_URL }}'|g" script.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './'
+          exclude: ['.git', '.github', 'node_modules', '*.md', '.gitignore']
 
       - name: Deploy to GitHub Pages
         id: deployment
