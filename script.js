@@ -5,11 +5,11 @@ import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey
 const firebaseConfig = {
     apiKey: window.REACT_APP_API_KEY,
     authDomain: window.REACT_APP_AUTH_DOMAIN,
-    databaseURL: "https://word-d249c-default-rtdb.firebaseio.com", //window.REACT_APP_URL
+    databaseURL: window.REACT_APP_URL,
     projectId: window.REACT_APP_PROJECT_ID,
     storageBucket: window.REACT_APP_STORAGE_BUCKET,
     messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
-    appId: window.REACT_APP_APP_ID,
+    appId: window.REACT_APP_APP_ID
 };
 
 // Validate Firebase configuration
