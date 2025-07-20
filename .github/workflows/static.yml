@@ -80,7 +80,14 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: './'
-          exclude: ['.git', '.github', 'node_modules', '*.md', '*.log', '.gitignore', '.env']
+          exclude: |
+            .git,
+            .github
+            node_modules
+            *.md
+            *.log
+            .gitignore
+            .env
 
       - name: Deploy to GitHub Pages
         id: deployment
