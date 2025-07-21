@@ -48,12 +48,12 @@ jobs:
 
       - name: Replace secrets in script.js
         run: |
-          sed -i "s|window.REACT_APP_API_KEY|${{ secrets.REACT_APP_API_KEY }}|g" script.js
-          sed -i "s|window.REACT_APP_AUTH_DOMAIN|${{ secrets.REACT_APP_AUTH_DOMAIN }}|g" script.js
-          sed -i "s|window.REACT_APP_PROJECT_ID|${{ secrets.REACT_APP_PROJECT_ID }}|g" script.js
-          sed -i "s|window.REACT_APP_STORAGE_BUCKET|${{ secrets.REACT_APP_STORAGE_BUCKET }}|g" script.js
-          sed -i "s|window.REACT_APP_MESSAGING_SENDER_ID|${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}|g" script.js
-          sed -i "s|window.REACT_APP_APP_ID|${{ secrets.REACT_APP_APP_ID }}|g" script.js
+          sed -i "s|window.REACT_APP_API_KEY|'${{ secrets.REACT_APP_API_KEY }}'|g" script.js
+          sed -i "s|window.REACT_APP_AUTH_DOMAIN|'${{ secrets.REACT_APP_AUTH_DOMAIN }}'|g" script.js
+          sed -i "s|window.REACT_APP_PROJECT_ID|'${{ secrets.REACT_APP_PROJECT_ID }}'|g" script.js
+          sed -i "s|window.REACT_APP_STORAGE_BUCKET|'${{ secrets.REACT_APP_STORAGE_BUCKET }}'|g" script.js
+          sed -i "s|window.REACT_APP_MESSAGING_SENDER_ID|'${{ secrets.REACT_APP_MESSAGING_SENDER_ID }}'|g" script.js
+          sed -i "s|window.REACT_APP_APP_ID|'${{ secrets.REACT_APP_APP_ID }}'|g" script.js
           sed -i "s|window.REACT_APP_URL|'${{ secrets.REACT_APP_URL }}'|g" script.js
           echo 'Keys handed over'
 #      - name: Replace secretsX in script.js
