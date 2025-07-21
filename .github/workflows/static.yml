@@ -81,13 +81,14 @@ jobs:
         with:
           path: './'
           exclude: |
-            .git,
+            .git
             .github
             node_modules
             *.md
             *.log
             .gitignore
             .env
+            .js
 
       - name: Deploy to GitHub Pages
         id: deployment
