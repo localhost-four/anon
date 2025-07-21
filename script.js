@@ -3,13 +3,13 @@ import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: window.REACT_APP_API_KEY,
-    authDomain: window.REACT_APP_AUTH_DOMAIN,
-    databaseURL: window.REACT_APP_URL,
-    projectId: window.REACT_APP_PROJECT_ID,
-    storageBucket: window.REACT_APP_STORAGE_BUCKET,
-    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
-    appId: window.REACT_APP_APP_ID
+    apiKey: 'AIzaSyBkyleR5JAFnemXVcDbpb06R11LekamqcE',
+    authDomain: 'word-d249c.firebaseapp.com',
+    databaseURL: 'https://word-d249c-default-rtdb.firebaseio.com/',
+    projectId: 'word-d249c',
+    storageBucket: 'word-d249c.appspot.com',
+    messagingSenderId: '6748384848',
+    appId: '1:6748384848:web:e9600b084cfdcc35f26b55'
 };
 
 // Validate Firebase configuration
@@ -83,20 +83,77 @@ function escapeHtml(unsafe) {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[match]));
 }
+
 function sanitizeHtml(html) {
     const div = document.createElement('div');
-    div.innerHTML = escapeHtml(html);
-    // Remove script tags and unsafe attributes
+    div.innerHTML = html;
+
+    const allowedTags = new Set(['p', 'b', 'i', 'u', 'em', 'strong', 'span', 'div', 'br', 'pre', 'code', 'a', 'img', 'ul', 'ol', 'li', 'blockquote']);
+    const safeAttributes = new Set(['href', 'src', 'alt', 'title', 'class', 'style', 'data-*']);
+    const cssWhitelist = new Set(['color', 'background-color', 'font-size', 'font-weight', 'text-align', 'margin', 'padding']);
+
     div.querySelectorAll('*').forEach(node => {
-        node.removeAttribute('onerror');
-        node.removeAttribute('onload');
-        if (node.tagName.toLowerCase() === 'script') node.remove();
+        if (!allowedTags.has(node.tagName.toLowerCase())) {
+            node.replaceWith(document.createTextNode(node.textContent));
+            return;
+        }
+
+        Array.from(node.attributes).forEach(attr => {
+            const attrName = attr.name.toLowerCase();
+            let shouldRemove = true;
+
+            if (safeAttributes.has(attrName) ||
+                attrName.startsWith('data-') ||
+                (attrName === 'style' && validateStyles(attr.value))) {
+                shouldRemove = false;
+            }
+
+            if (attrName === 'href' || attrName === 'src') {
+                if (!isSafeUrl(attr.value)) shouldRemove = true;
+            }
+
+            if (shouldRemove) node.removeAttribute(attr.name);
+        });
+
+        if (node.tagName.toLowerCase() === 'style') node.remove();
+        if (node.tagName.toLowerCase() === 'img' && !node.hasAttribute('src')) node.remove();
+        if (node.style) {
+            const blockedProps = ['position', 'z-index', 'opacity', 'transform'];
+            blockedProps.forEach(prop => node.style.removeProperty(prop));
+        }
     });
+
+    div.querySelectorAll('script').forEach(el => el.remove());
     return div.innerHTML;
+
+    function isSafeUrl(url) {
+        try {
+            const parsed = new URL(url, window.location.href);
+            return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol) &&
+                !/^(javascript:|data:text\/html|data:application\/javascript)/i.test(url);
+        } catch {
+            return false;
+        }
+    }
+
+    function validateStyles(styles) {
+        return styles.split(';').every(declaration => {
+            const [prop, value] = declaration.split(':').map(s => s.trim());
+            return prop && value && cssWhitelist.has(prop.toLowerCase()) &&
+                !/expression|url\(|import|@import/i.test(value);
+        });
+    }
 }
+
 function validateText(text) {
-    const regex = /^[a-zA-Z0-9\s.,!?]+$/;
-    return text && text.length <= 1000 && regex.test(text) && !text.includes('127.0.0.1') && !text.includes('local');
+    const blocked = ['script', 'eval', 'fetch', 'xmlhttp', 'document', 'window'];
+    const regex = /^[a-zA-Z0-9\s.,!?@#$%^&*()\-_+=<>{}[\]|\\\/:;"'`~]+$/;
+
+    return text &&
+        text.length <= 1000 &&
+        regex.test(text) &&
+        !blocked.some(word => text.toLowerCase().includes(word)) ||
+        !/(http?|ftp):\/\/[^\s/$.?#].[^\s]*/i.test(text);
 }
 function validateNickname(nick) {
     const regex = /^[a-zA-Z0-9_]{3,20}$/;
@@ -141,8 +198,9 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     const reactions = msg.reactions || { check: 0, cross: 0 };
     const reactionsHtml = `
         <div class="reactions">
-            <button class="reaction-btn check-btn" data-key="${key}" data-type="check">✅ ${reactions.check || 0}</button>
-            <button class="reaction-btn cross-btn" data-key="${key}" data-type="cross">❌ ${reactions.cross || 0}</button>
+            <button class="reaction-btn like-btn" data-key="${key}" data-type="like">💕 ${reactions.like || 0}</button>
+            <button class="reaction-btn check-btn" data-key="${key}" data-type="check">+ ${reactions.check || 0}</button>
+            <button class="reaction-btn cross-btn" data-key="${key}" data-type="cross">- ${reactions.cross || 0}</button>
         </div>
     `;
 
@@ -175,6 +233,11 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     else {
         messagesDiv.appendChild(messageDiv);
         if (!isSearchResult) messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    const lastMessages = document.querySelectorAll('.message');
+    if (lastMessages.length > 0) {
+        lastMessages[lastMessages.length - 1].scrollIntoView({ behavior: 'smooth' });
     }
 }
 
@@ -270,8 +333,47 @@ document.addEventListener('DOMContentLoaded', () => {
     optimizeDatabase();
 });
 
+const rateLimit = {
+    lastRequest: 0,
+    requests: 0,
+    check: function () {
+        const now = Date.now();
+        if (now - this.lastRequest > 60000) {
+            this.requests = 0;
+            this.lastRequest = now;
+        }
+        if (++this.requests > 30) {
+            alert('Too many requests. Please wait.');
+            return false;
+        }
+        return true;
+    }
+};
+
+function renderMarkdown(text) {
+    // Заголовки
+    text = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+    text = text.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+    
+    // Жирный/курсив
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Ссылки
+    text = text.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" rel="nofollow">$1</a>');
+    
+    // Код
+    text = text.replace(/`(.*?)`/g, '<code>$1</code>');
+    
+    // Переносы строк
+    text = text.replace(/\n/g, '<br>');
+    
+    return text;
+}
+
 // Send message with HTML/MD support
 function sendMessage() {
+    if (!rateLimit.check()) return;
     if (!database || !messagesRef) return;
     const input = document.getElementById('message-input');
     if (!input) return;
@@ -279,7 +381,7 @@ function sendMessage() {
     const replyTo = input.dataset.replyTo || null;
     const replyText = input.dataset.replyText || null;
     if (validateText(text.replace(/<[^>]+>/g, ''))) {
-        text = sanitizeHtml(text); // Allow HTML/MD but sanitize
+        text = renderMarkdown(sanitizeHtml(text)); // Allow HTML/MD but sanitize
         try {
             const newMessageRef = push(messagesRef);
             set(newMessageRef, {
@@ -290,7 +392,7 @@ function sendMessage() {
                 timestamp: Date.now(),
                 edited: false,
                 pinned: false,
-                reactions: { check: 0, cross: 0 },
+                reactions: { like: 0, check: 0, cross: 0 },
                 replyTo: replyTo,
                 replyText: replyText
             });
@@ -520,6 +622,22 @@ function updateOnlineStatus() {
                 const lastThree = onlineUsers.slice(0, 3).map(([_, user]) => (user.nickname || user.id.split('_')[0].substring(0, 10)).substring(0, 10)).join(', ');
                 const onlineStatusDiv = document.getElementById('online-status');
                 if (onlineStatusDiv) onlineStatusDiv.textContent = `Online: ${onlineCount}${lastThree ? ` (${lastThree})` : ''}`;
+
+                onlineUsers.forEach(([id, user]) => {
+                    try {
+                        const nickname = user.nickname || id.split('_')[0];
+                        document.querySelectorAll(`.message-sender:contains("${nickname}")`).forEach(el => {
+                            el.classList.add('online-user');
+                            el.title = 'Online now';
+                        });
+                    } catch { null; }
+                });
+
+                if (onlineCount > 0) {
+                    setTimeout(() => {
+                        remove(usersRef).catch(e => console.log('Cleanup skipped:', e));
+                    }, 5000); // Задержка для следующего обновления статуса
+                }
             }
         });
     } catch (error) {
@@ -549,6 +667,8 @@ function toggleTheme() {
 function syncTheme() {
     document.body.classList.toggle('dark-theme', theme === 'dark');
 }
+
+document.getElementById('chat-title').textContent = localStorage.getItem('chat-title') || 'Anon Chat';
 
 // Settings with device adaptation
 function openSettings() {
