@@ -173,7 +173,7 @@ function escapeHtml(unsafe) {
 
 function sanitizeHtml(html) {
     const div = document.createElement('div');
-    div.innerHTML = html;
+    div.innerHTML = escapeHtml(html); // Escape input before assigning to innerHTML
 
     const allowedTags = new Set(['p', 'b', 'i', 'u', 'em', 'strong', 'span', 'div', 'br', 'pre', 'code', 'a', 'img', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'table', 'tr', 'td', 'th']);
     const safeAttributes = new Set(['href', 'src', 'alt', 'title', 'class', 'style', 'data-type', 'loading']);
