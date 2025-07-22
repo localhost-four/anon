@@ -86,7 +86,6 @@
   border-radius: 8px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
   margin: 0.5rem 0;
-  word-wrap: break-word;
 }
 
 [data-type="content-block"] p,
@@ -276,12 +275,14 @@
 
 .message-text {
   background-color: rgba(255, 255, 255, 0.85);
-  
   border-radius: 12px;
   word-wrap: break-word;
-
   user-select: text;
   /* Allow text selection only here */
+}
+
+.message-text [data-type="content-block"] {
+  padding: 0;
 }
 
 .message-time {

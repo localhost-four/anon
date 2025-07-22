@@ -98,13 +98,13 @@ function interceptLinkClicks() {
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: window.REACT_APP_API_KEY ,
-    authDomain: window.REACT_APP_AUTH_DOMAIN ,
-    databaseURL: window.REACT_APP_URL ,
-    projectId: window.REACT_APP_PROJECT_ID ,
-    storageBucket: window.REACT_APP_STORAGE_BUCKET ,
-    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID ,
-    appId: window.REACT_APP_APP_ID 
+    apiKey: window.REACT_APP_API_KEY,
+    authDomain: window.REACT_APP_AUTH_DOMAIN,
+    databaseURL: window.REACT_APP_URL,
+    projectId: window.REACT_APP_PROJECT_ID,
+    storageBucket: window.REACT_APP_STORAGE_BUCKET,
+    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
+    appId: window.REACT_APP_APP_ID
 };
 
 // Initialize Firebase with error handling and recovery
@@ -173,7 +173,7 @@ function escapeHtml(unsafe) {
 
 function sanitizeHtml(html) {
     const div = document.createElement('div');
-    div.innerHTML = escapeHtml(html); // Escape input before assigning to innerHTML
+    div.innerHTML = html;
 
     const allowedTags = new Set(['p', 'b', 'i', 'u', 'em', 'strong', 'span', 'div', 'br', 'pre', 'code', 'a', 'img', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'table', 'tr', 'td', 'th']);
     const safeAttributes = new Set(['href', 'src', 'alt', 'title', 'class', 'style', 'data-type', 'loading']);
@@ -184,7 +184,7 @@ function sanitizeHtml(html) {
     const urlCache = JSON.parse(localStorage.getItem('urlCache') || '{}');
 
     // Удаляем опасные теги
-    div.querySelectorAll('script, iframe, object, embed, link, meta').forEach(el => {
+    div.querySelectorAll('script, iframe, object, embed, link, meta, form, input, button').forEach(el => {
         console.log(`Removed unsafe tag: ${el.tagName}`);
         selfHeal('sanitizeHtml', new Error(`Removed unsafe tag: ${el.tagName}`));
         el.remove();
@@ -212,7 +212,17 @@ function sanitizeHtml(html) {
                 } else if (attrName === 'src' || attrName === 'href') {
                     if (!isSafeUrl(attr.value)) shouldRemove = true;
                 } else if (attrName === 'style' && !validateStyles(attr.value)) {
-                    shouldRemove = true;
+                    const style = attr.value;
+                    const validStyle = style.split(';').filter(declaration => {
+                        const [prop, value] = declaration.split(':').map(s => s.trim());
+                        return prop && value && cssWhitelist.has(prop.toLowerCase()) &&
+                            !/expression|url\(|import|@import|javascript:/i.test(value);
+                    }).join(';');
+                    if (validStyle) {
+                        node.setAttribute('style', validStyle);
+                    } else {
+                        shouldRemove = true;
+                    }
                 } else if (attrName === 'loading' && attr.value !== 'lazy' && attr.value !== 'eager') {
                     shouldRemove = true;
                 } else if ((attrName === 'src' || attrName === 'href') && attr.value.length > 200) {
@@ -363,7 +373,7 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
         const markdownRendered = renderMarkdown(msg.text);
         textToDisplay = isSearchResult && msg.searchTerm
             ? sanitizeHtml(markdownRendered).replace(new RegExp(`(${msg.searchTerm})`, 'gi'), '<span class="highlight">$1</span>')
-            : `<div data-type="content-block">${sanitizeHtml(markdownRendered)}</div>`;
+            : `<div data-type="content-block">${sanitizeHtml(renderMarkdown(markdownRendered))}</div>`;
     } catch (error) {
         console.error('Error rendering message:', error);
         selfHeal('addMessageToDOM', error);
@@ -399,6 +409,7 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
         if (!isSearchResult) messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    
     const lastMessages = document.querySelectorAll('.message');
     if (lastMessages.length > 0) {
         lastMessages[lastMessages.length - 1].scrollIntoView({ behavior: 'smooth' });
@@ -568,7 +579,7 @@ function sendMessage() {
     const replyTo = input.dataset.replyTo || null;
     const replyText = input.dataset.replyText || null;
     if (validateText(text.replace(/<[^>]+>/g, '')) && text.length >= 2) {
-        text = sanitizeHtml(text); // Allow HTML/MD but sanitize
+        text = sanitizeHtml(renderMarkdown(text)); // Allow HTML/MD but sanitize
         try {
             const newMessageRef = push(messagesRef);
             set(newMessageRef, {
