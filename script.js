@@ -98,13 +98,13 @@ function interceptLinkClicks() {
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: window.REACT_APP_API_KEY,
-    authDomain: window.REACT_APP_AUTH_DOMAIN,
-    databaseURL: window.REACT_APP_URL,
-    projectId: window.REACT_APP_PROJECT_ID,
-    storageBucket: window.REACT_APP_STORAGE_BUCKET,
-    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
-    appId: window.REACT_APP_APP_ID
+    apiKey: window.REACT_APP_API_KEY ,
+    authDomain: window.REACT_APP_AUTH_DOMAIN ,
+    databaseURL: window.REACT_APP_URL ,
+    projectId: window.REACT_APP_PROJECT_ID ,
+    storageBucket: window.REACT_APP_STORAGE_BUCKET ,
+    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID ,
+    appId: window.REACT_APP_APP_ID 
 };
 
 // Initialize Firebase with error handling and recovery
