@@ -1,26 +1,111 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getDatabase, ref, set, push, onValue, remove, update, query, orderByKey, limitToLast, orderByChild, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked@4.0.12/lib/marked.esm.js';
+
+// ---
+function showLinkWarning(url, callback) {
+    if (document.querySelector('.link-warning-modal')) { return; }
+    document.querySelectorAll('.link-warning-modal').forEach(modal => modal.remove());
+    const modal = document.createElement('div');
+    modal.className = 'link-warning-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Follow the link?</h3>
+            <p>You are about to follow ${url.startsWith(window.location.origin) ? 'an internal' : 'an external'} via a link:</p> 
+            <a href="${url}" target="_blank">${url}</a>
+            <p>${url.startsWith(window.location.origin) ? 'This may be a link to a message!' : 'Make sure this is a safe resource!'}</p>
+            <button id="confirm-link">Go</button>
+            <button id="cancel-link">Cancel</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('confirm-link').addEventListener('click', () => {
+        selfHeal('showLinkWarning', new Error(`Link confirmed: ${url}`));
+        callback();
+        modal.remove();
+    });
+    document.getElementById('cancel-link').addEventListener('click', () => {
+        selfHeal('showLinkWarning', new Error(`Link cancelled: ${url}`));
+        modal.remove();
+        location.reload();
+    });
+}
+
+function interceptLinkClicks() {
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (link && link.href) {
+            e.preventDefault();
+            // Логируем попытку перехода
+            selfHeal('interceptLinkClicks', new Error(`Link clicked: ${link.href}`));
+            // Проверяем валидность URL
+            try {
+                new URL(link.href, window.location.href);
+                showLinkWarning(link.href, () => {
+                    // Логируем успешное подтверждение
+                    selfHeal('interceptLinkClicks', new Error(`Link confirmed: ${link.href}`));
+                    window.open(link.href, '_blank');
+                }, () => {
+                    // Логируем отмену
+                    selfHeal('interceptLinkClicks', new Error(`Link cancelled: ${link.href}`));
+                });
+            } catch (error) {
+                console.error('Invalid URL:', link.href, error);
+                selfHeal('interceptLinkClicks', error);
+                alert('Invalid link URL.');
+            }
+        }
+    });
+
+    // Отслеживаем динамически добавленные ссылки
+    const messagesDiv = document.getElementById('chat-messages');
+    if (messagesDiv) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        node.querySelectorAll('a').forEach(link => {
+                            link.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                if (link.href) {
+                                    selfHeal('interceptLinkClicks', new Error(`Dynamic link clicked: ${link.href}`));
+                                    try {
+                                        new URL(link.href, window.location.href);
+                                        showLinkWarning(link.href, () => {
+                                            selfHeal('interceptLinkClicks', new Error(`Dynamic link confirmed: ${link.href}`));
+                                            window.open(link.href, '_blank');
+                                        }, () => {
+                                            selfHeal('interceptLinkClicks', new Error(`Dynamic link cancelled: ${link.href}`));
+                                        });
+                                    } catch (error) {
+                                        console.error('Invalid dynamic URL:', link.href, error);
+                                        selfHeal('interceptLinkClicks', error);
+                                        alert('Invalid link URL.');
+                                    }
+                                }
+                            });
+                        });
+                    }
+                });
+            });
+        });
+        observer.observe(messagesDiv, { childList: true, subtree: true });
+    }
+}
+
+// -------------------------------
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: 'AIzaSyBkyleR5JAFnemXVcDbpb06R11LekamqcE',
-    authDomain: 'word-d249c.firebaseapp.com',
-    databaseURL: 'https://word-d249c-default-rtdb.firebaseio.com/',
-    projectId: 'word-d249c',
-    storageBucket: 'word-d249c.appspot.com',
-    messagingSenderId: '6748384848',
-    appId: '1:6748384848:web:e9600b084cfdcc35f26b55'
+    apiKey: window.REACT_APP_API_KEY,
+    authDomain: window.REACT_APP_AUTH_DOMAIN,
+    databaseURL: window.REACT_APP_URL,
+    projectId: window.REACT_APP_PROJECT_ID,
+    storageBucket: window.REACT_APP_STORAGE_BUCKET,
+    messagingSenderId: window.REACT_APP_MESSAGING_SENDER_ID,
+    appId: window.REACT_APP_APP_ID
 };
-
-// Validate Firebase configuration
-function validateFirebaseConfig(config) {
-    const requiredKeys = ['apiKey', 'authDomain', 'databaseURL', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
-    for (const key of requiredKeys) {
-        if (!config[key] || config[key].includes('window.REACT_APP_')) {
-            throw new Error(`Missing or invalid Firebase config key: ${key}`);
-        }
-    }
-}
 
 // Initialize Firebase with error handling and recovery
 let app, database;
@@ -42,6 +127,8 @@ try {
         }
     }
 }
+
+// -------------------------------
 
 // Database references with validation
 const messagesRef = database ? ref(database, 'messages') : null;
@@ -88,12 +175,26 @@ function sanitizeHtml(html) {
     const div = document.createElement('div');
     div.innerHTML = html;
 
-    const allowedTags = new Set(['p', 'b', 'i', 'u', 'em', 'strong', 'span', 'div', 'br', 'pre', 'code', 'a', 'img', 'ul', 'ol', 'li', 'blockquote']);
-    const safeAttributes = new Set(['href', 'src', 'alt', 'title', 'class', 'style', 'data-*']);
-    const cssWhitelist = new Set(['color', 'background-color', 'font-size', 'font-weight', 'text-align', 'margin', 'padding']);
+    const allowedTags = new Set(['p', 'b', 'i', 'u', 'em', 'strong', 'span', 'div', 'br', 'pre', 'code', 'a', 'img', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'table', 'tr', 'td', 'th']);
+    const safeAttributes = new Set(['href', 'src', 'alt', 'title', 'class', 'style', 'data-type', 'loading']);
+    const cssWhitelist = new Set(['color', 'background-color', 'font-size', 'font-weight', 'text-align', 'margin', 'padding', 'width', 'height', 'max-width', 'max-height', 'opacity', 'display', 'box-shadow']);
+    const blockedEventAttributes = new Set(['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur']);
+
+    // Кэш для проверенных URL
+    const urlCache = JSON.parse(localStorage.getItem('urlCache') || '{}');
+
+    // Удаляем опасные теги
+    div.querySelectorAll('script, iframe, object, embed, link, meta').forEach(el => {
+        console.log(`Removed unsafe tag: ${el.tagName}`);
+        selfHeal('sanitizeHtml', new Error(`Removed unsafe tag: ${el.tagName}`));
+        el.remove();
+    });
 
     div.querySelectorAll('*').forEach(node => {
-        if (!allowedTags.has(node.tagName.toLowerCase())) {
+        const tagName = node.tagName.toLowerCase();
+        if (!allowedTags.has(tagName)) {
+            console.log(`Removed unsafe tag: ${tagName}`);
+            selfHeal('sanitizeHtml', new Error(`Removed unsafe tag: ${tagName}`));
             node.replaceWith(document.createTextNode(node.textContent));
             return;
         }
@@ -102,36 +203,75 @@ function sanitizeHtml(html) {
             const attrName = attr.name.toLowerCase();
             let shouldRemove = true;
 
-            if (safeAttributes.has(attrName) ||
-                attrName.startsWith('data-') ||
-                (attrName === 'style' && validateStyles(attr.value))) {
+            if (safeAttributes.has(attrName) || attrName.startsWith('data-')) {
                 shouldRemove = false;
-            }
-
-            if (attrName === 'href' || attrName === 'src') {
-                if (!isSafeUrl(attr.value)) shouldRemove = true;
+                if (blockedEventAttributes.has(attrName)) {
+                    console.log(`Removed unsafe attribute: ${attrName}`);
+                    selfHeal('sanitizeHtml', new Error(`Removed unsafe attribute: ${attrName}`));
+                    shouldRemove = true;
+                } else if (attrName === 'src' || attrName === 'href') {
+                    if (!isSafeUrl(attr.value)) shouldRemove = true;
+                } else if (attrName === 'style' && !validateStyles(attr.value)) {
+                    shouldRemove = true;
+                } else if (attrName === 'loading' && attr.value !== 'lazy' && attr.value !== 'eager') {
+                    shouldRemove = true;
+                } else if ((attrName === 'src' || attrName === 'href') && attr.value.length > 200) {
+                    shouldRemove = true; // Ограничение длины атрибутов
+                }
             }
 
             if (shouldRemove) node.removeAttribute(attr.name);
         });
 
-        if (node.tagName.toLowerCase() === 'style') node.remove();
-        if (node.tagName.toLowerCase() === 'img' && !node.hasAttribute('src')) node.remove();
+        if (tagName === 'img') {
+            const src = node.getAttribute('src');
+            if (!src || !isSafeUrl(src)) {
+                console.log(`Removed invalid image: ${src || 'no src'}`);
+                selfHeal('sanitizeHtml', new Error(`Removed invalid image: ${src || 'no src'}`));
+                node.remove();
+            } else {
+                if (!node.hasAttribute('alt')) node.setAttribute('alt', 'Image');
+                if (!node.hasAttribute('loading')) node.setAttribute('loading', 'lazy');
+                node.style.maxWidth = '100%';
+                node.style.maxHeight = '300px';
+                node.style.borderRadius = '8px';
+                node.style.objectFit = 'contain';
+            }
+        }
+
+        if (tagName === 'div' && node.getAttribute('data-type') === 'content-block') {
+            if (!isSafeContentBlock(node)) {
+                console.log('Removed unsafe content block');
+                selfHeal('sanitizeHtml', new Error('Removed unsafe content block'));
+                node.replaceWith(document.createTextNode(node.textContent));
+            }
+        }
+
         if (node.style) {
-            const blockedProps = ['position', 'z-index', 'opacity', 'transform'];
+            const blockedProps = ['position', 'z-index', 'transform'];
             blockedProps.forEach(prop => node.style.removeProperty(prop));
         }
     });
 
-    div.querySelectorAll('script').forEach(el => el.remove());
-    return div.innerHTML;
-
-    function isSafeUrl(url) {
+    async function isSafeUrl(url) {
         try {
+            // Проверяем кэш
+            if (urlCache[url]) return urlCache[url];
+
             const parsed = new URL(url, window.location.href);
-            return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol) &&
-                !/^(javascript:|data:text\/html|data:application\/javascript)/i.test(url);
-        } catch {
+            if (!['https:', 'http:'].includes(parsed.protocol) || /^(javascript:|data:)/i.test(url)) {
+                return false;
+            }
+            const response = await fetch(url, { method: 'HEAD' });
+            const contentType = response.headers.get('content-type') || '';
+            const isValid = contentType.startsWith('image/') && /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(parsed.pathname);
+            // Сохраняем в кэш
+            urlCache[url] = isValid;
+            localStorage.setItem('urlCache', JSON.stringify(urlCache));
+            return isValid;
+        } catch (error) {
+            console.error(`Error checking URL ${url}:`, error);
+            selfHeal('isSafeUrl', error);
             return false;
         }
     }
@@ -140,21 +280,33 @@ function sanitizeHtml(html) {
         return styles.split(';').every(declaration => {
             const [prop, value] = declaration.split(':').map(s => s.trim());
             return prop && value && cssWhitelist.has(prop.toLowerCase()) &&
-                !/expression|url\(|import|@import/i.test(value);
+                !/expression|url\(|import|@import|javascript:/i.test(value);
         });
+    }
+
+    function isSafeContentBlock(node) {
+        const allowedContentTags = new Set(['p', 'img', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'span', 'b', 'i', 'u', 'em', 'strong']);
+        return Array.from(node.children).every(child => allowedContentTags.has(child.tagName.toLowerCase()));
+    }
+
+    return div.innerHTML;
+}
+
+async function validateText(text) {
+    const blocked = ['script', 'eval', 'fetch', 'xmlhttp', 'document', 'window'];
+    try {
+        const sanitized = await sanitizeHtml(text);
+        return text &&
+            text.length <= 500 &&
+            !blocked.some(word => text.toLowerCase().includes(word)) &&
+            sanitized.length > 1; 
+    } catch (error) {
+        console.error('Error validating text:', error);
+        selfHeal('validateText', error);
+        return false;
     }
 }
 
-function validateText(text) {
-    const blocked = ['script', 'eval', 'fetch', 'xmlhttp', 'document', 'window'];
-    const regex = /^[a-zA-Z0-9\s.,!?@#$%^&*()\-_+=<>{}[\]|\\\/:;"'`~]+$/;
-
-    return text &&
-        text.length <= 1000 &&
-        regex.test(text) &&
-        !blocked.some(word => text.toLowerCase().includes(word)) ||
-        !/(http?|ftp):\/\/[^\s/$.?#].[^\s]*/i.test(text);
-}
 function validateNickname(nick) {
     const regex = /^[a-zA-Z0-9_]{3,20}$/;
     return nick && regex.test(nick);
@@ -174,6 +326,7 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     const messageDiv = document.createElement('div');
     messageDiv.id = key;
     messageDiv.className = `message ${msg.pinned ? 'pinned' : ''} ${msg.replyTo ? 'reply' : ''}`;
+    messageDiv.style.minWidth = 'fit-content';
     messageDiv.style.borderLeft = `4px solid ${msg.color || userColor}`;
 
     // Date separator
@@ -195,7 +348,7 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     let replyHtml = '';
     if (msg.replyTo) replyHtml = `<div class="reply-preview" data-reply-id="${msg.replyTo}">Replying to: ${sanitizeHtml(msg.replyText || 'Message')}</div>`;
 
-    const reactions = msg.reactions || { check: 0, cross: 0 };
+    const reactions = msg.reactions || { like: 0, check: 0, cross: 0 };
     const reactionsHtml = `
         <div class="reactions">
             <button class="reaction-btn like-btn" data-key="${key}" data-type="like">💕 ${reactions.like || 0}</button>
@@ -204,9 +357,18 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
         </div>
     `;
 
-    const textToDisplay = isSearchResult && msg.searchTerm
-        ? sanitizeHtml(msg.text).replace(new RegExp(`(${msg.searchTerm})`, 'gi'), '<span class="highlight">$1</span>')
-        : sanitizeHtml(msg.text);
+    let textToDisplay;
+    try {
+        // Сначала рендерим Markdown, потом санитизируем
+        const markdownRendered = renderMarkdown(msg.text);
+        textToDisplay = isSearchResult && msg.searchTerm
+            ? sanitizeHtml(markdownRendered).replace(new RegExp(`(${msg.searchTerm})`, 'gi'), '<span class="highlight">$1</span>')
+            : `<div data-type="content-block">${sanitizeHtml(markdownRendered)}</div>`;
+    } catch (error) {
+        console.error('Error rendering message:', error);
+        selfHeal('addMessageToDOM', error);
+        textToDisplay = `<div data-type="content-block">${sanitizeHtml(msg.text)}</div>`;
+    }
 
     messageDiv.innerHTML = `
         <div class="message-sender" style="color: ${msg.color || userColor}">${escapeHtml(msg.nickname || nickname)}</div>
@@ -219,9 +381,11 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
             <button class="message-action-btn delete-btn" data-key="${key}">Delete</button>
             <button class="message-action-btn pin-btn" data-key="${key}" data-pinned="${msg.pinned}">${msg.pinned ? 'Unpin' : 'Pin'}</button>
             <button class="message-action-btn reply-btn" data-key="${key}" data-text="${escapeHtml(msg.text)}">Reply</button>
+            <button class="message-action-btn share-btn" data-key="${key}">Share</button>
         </div>
     `;
 
+    messageDiv.querySelector('.share-btn').addEventListener('click', () => shareMessage(msg.text, key));
     messageDiv.querySelector('.edit-btn').addEventListener('click', () => editMessage(key));
     messageDiv.querySelector('.delete-btn').addEventListener('click', () => deleteMessage(key));
     messageDiv.querySelector('.pin-btn').addEventListener('click', () => msg.pinned ? unpinMessage(key) : pinMessage(key));
@@ -238,6 +402,31 @@ function addMessageToDOM(key, msg, prepend = false, isSearchResult = false) {
     const lastMessages = document.querySelectorAll('.message');
     if (lastMessages.length > 0) {
         lastMessages[lastMessages.length - 1].scrollIntoView({ behavior: 'smooth' });
+    }
+
+    messageDiv.querySelectorAll('img[loading="lazy"]').forEach(img => {
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    img.src = img.dataset.src || img.src;
+                    img.classList.add('loaded');
+                    observer.unobserve(img);
+                }
+            });
+        });
+        observer.observe(img);
+    });
+}
+
+function shareMessage(text, key) {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Shared Message from Anon Chat',
+            text: text.replace(/<[^>]+>/g, ''),
+            url: `${window.location.origin}/#message-${key}`
+        }).catch(err => console.error('Error sharing message:', err));
+    } else {
+        alert('Sharing is not supported in this browser.');
     }
 }
 
@@ -351,24 +540,22 @@ const rateLimit = {
 };
 
 function renderMarkdown(text) {
-    // Заголовки
-    text = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-    text = text.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-    
-    // Жирный/курсив
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    
-    // Ссылки
-    text = text.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" rel="nofollow">$1</a>');
-    
-    // Код
-    text = text.replace(/`(.*?)`/g, '<code>$1</code>');
-    
-    // Переносы строк
-    text = text.replace(/\n/g, '<br>');
-    
-    return text;
+    try {
+        // Пропускаем Markdown, если есть HTML-теги
+        if (/<[a-z][\s\S]*>/i.test(text)) {
+            return text; // Возвращаем текст как есть для санитизации
+        }
+        const rendered = marked(text, {
+            gfm: true,
+            breaks: true,
+            sanitize: false // Используем sanitizeHtml для фильтрации
+        });
+        return rendered;
+    } catch (error) {
+        console.error('Error rendering Markdown:', error);
+        selfHeal('renderMarkdown', error);
+        return text; // Возвращаем исходный текст при ошибке
+    }
 }
 
 // Send message with HTML/MD support
@@ -380,8 +567,8 @@ function sendMessage() {
     let text = input.value.trim();
     const replyTo = input.dataset.replyTo || null;
     const replyText = input.dataset.replyText || null;
-    if (validateText(text.replace(/<[^>]+>/g, ''))) {
-        text = renderMarkdown(sanitizeHtml(text)); // Allow HTML/MD but sanitize
+    if (validateText(text.replace(/<[^>]+>/g, '')) && text.length >= 2) {
+        text = sanitizeHtml(text); // Allow HTML/MD but sanitize
         try {
             const newMessageRef = push(messagesRef);
             set(newMessageRef, {
@@ -633,10 +820,18 @@ function updateOnlineStatus() {
                     } catch { null; }
                 });
 
-                if (onlineCount > 0) {
+                if (onlineCount > 1) {
                     setTimeout(() => {
                         remove(usersRef).catch(e => console.log('Cleanup skipped:', e));
                     }, 5000); // Задержка для следующего обновления статуса
+                } else {
+                    try {
+                        Object.entries(users).forEach(([id, user]) => {
+                            if (Date.now() - user.lastActive > 30 * 60 * 1000) {
+                                remove(ref(database, `users/${id}`));
+                            }
+                        });
+                    } catch { null; }
                 }
             }
         });
@@ -743,7 +938,44 @@ function optimizeSecurityRules() {
     console.log('Proposed security rules:', securityRules);
 }
 
+function addCharCounter() {
+    const input = document.getElementById('message-input');
+    const counter = document.createElement('div');
+    counter.id = 'char-counter';
+    counter.className = 'char-counter';
+    input.parentNode.insertBefore(counter, input.nextSibling);
+    updateCharCounter(input);
+
+    input.addEventListener('input', () => updateCharCounter(input));
+    input.addEventListener('keyup', () => updateCharCounter(input));
+}
+
+function updateCharCounter(input) {
+    const maxLength = 500;
+    // Учитываем полный текст, включая теги
+    let currentLength = input.value.length;
+    const counter = document.getElementById('char-counter');
+    if (counter) {
+        // Проверяем наличие HTML-тегов
+        const hasHtml = /<[a-z][\s\S]*>/i.test(input.value);
+        counter.textContent = `${currentLength}/${maxLength}${hasHtml ? ' (HTML)' : ''}`;
+        counter.className = 'char-counter';
+        if (currentLength > maxLength * 0.8) counter.classList.add('warning');
+        if (currentLength > maxLength * 0.95) counter.classList.add('error');
+        if (currentLength === 0) counter.classList.add('empty');
+        if (currentLength > maxLength) {
+            input.value = input.value.slice(0, maxLength);
+            counter.classList.add('pulse');
+            setTimeout(() => counter.classList.remove('pulse'), 500);
+        }
+    }
+}
+
 // Initialize system
-syncTheme();
-updateOnlineStatus();
-optimizeDatabase();
+document.addEventListener("DOMContentLoaded", () => {
+    syncTheme();
+    addCharCounter();
+    updateOnlineStatus();
+    optimizeDatabase();
+    setInterval(() => interceptLinkClicks(), 500);
+});

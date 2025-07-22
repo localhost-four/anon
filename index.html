@@ -18,8 +18,8 @@
     <meta http-equiv="X-Frame-Options" content="DENY">
     <!-- Установка заголовка X-Content-Type-Options -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-
-    <meta name="referrer" content="no-referrer">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <!-- <meta name="referrer" content="no-referrer"> -->
     <meta name="HandheldFriendly" content="True">
 
     <!-- Иконки для мобильных устройств -->
@@ -33,7 +33,7 @@
         content="web-share=(), midi=(), gyroscope=(), fullscreen=(), document-domain=(), notifications=(self), popups=(self)">
 
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebaseio.com; connect-src 'self' wss://*.firebaseio.com; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self';">
+        content="script-src 'self' https://*.firebasestorage.googleapis.com https://cdn.jsdelivr.net https://www.gstatic.com https://*.firebaseio.com; connect-src 'self' wss://*.firebaseio.com https://*.firebasestorage.googleapis.com; style-src 'self' 'unsafe-inline'; font-src 'self';">
     <title>Anon Chat</title>
 
     <!-- Установка кодировки и масштаба -->
@@ -72,6 +72,7 @@
 
     <link rel="stylesheet" href="styles.css" loading="lazy">
     <script type="module" src="script.js" loading="lazy"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/lib/marked.esm.js"></script>
 </head>
 
 <body>
