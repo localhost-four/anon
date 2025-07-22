@@ -21,7 +21,7 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-      "firebase": "^9.21.0",
+      "firebase": "^10.9.0",
       "live-server": "^1.2.1"
     },
     "devDependencies": {
