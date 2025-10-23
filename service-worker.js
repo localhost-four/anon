@@ -1,0 +1,118 @@
+//service-worker.js
+const CACHE_NAME = 'my-site-cache-v2';
+const urlsToCache = [
+  '/',
+  'index.html',
+  'styles.css',
+  'script.js',
+  'package.json',
+  '0.webp', 
+  '/anon/index.html',
+  '/anon/styles.css',
+  '/anon/script.js',
+  '/anon/0.webp',
+  '/anon/package.json'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+      caches.open(CACHE_NAME)
+          .then((cache) => {
+              console.log('File Caching');
+              return Promise.all(urlsToCache.map(url => {
+                  return fetch(url).then(response => {
+                      if (!response.ok) {
+                          throw new Error(`Network response was not ok for ${url} (status: ${response.status})`);
+                      }
+                      return cache.put(url, response);
+                  }).catch(error => {
+                      console.error(`Failed to fetch ${url}:`, error);
+                  });
+              }));
+          })
+          .catch(error => {
+              console.error('Error caching:', error);
+          })
+  );
+});
+
+// Обновляем кэш, если он изменился
+self.addEventListener('activate', (event) => {
+  const cacheWhitelist = [CACHE_NAME];
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (!cacheWhitelist.includes(cacheName)) {
+            return caches.delete(cacheName); // Удаляем старые кэши
+          }
+        })
+      );
+    })
+  );
+});
+
+// Извлекаем данные из события push
+self.addEventListener('push', function(event) {
+  const data = event.data.json(); 
+
+  const title = data.title || 'Notification';
+  const options = {
+      body: data.body || 'New notice from anon',
+      icon: '/anon/0.webp', // Укажите путь к иконке уведомления
+      badge: '/anon/0.webp' // Укажите путь к значку уведомления (необязательно)
+  };
+
+  event.waitUntil(
+      self.registration.showNotification(title, options)
+  );
+});
+
+// Обработка кликов по уведомлению
+self.addEventListener('notificationclick', event => {
+    event.notification.close(); // Закрываем уведомление
+
+    event.waitUntil(
+      clients.matchAll({ type: 'window' }).then(clients => {
+        // Проверяем, есть ли уже открытое окно приложения
+        const client = clients.find(c => c.url === 'https://localhost-four.github.io/anon/' && 'focus' in c);
+        if (client) {
+            return client.focus(); // Если есть, фокусируемся на нем
+        } else {
+            return clients.openWindow('https://localhost-four.github.io/anon/'); // Иначе открываем новое окно
+        }
+      })
+    );
+
+});
+
+// Регистрация сервис-воркера
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+      .then((registration) => {
+          console.log('Service Worker open:', registration.scope);
+      })
+      .catch((error) => {
+          console.error('Error Service Worker:', error);
+      });
+}
+
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+  navigator.serviceWorker.register('/service-worker.js')
+      .then(function(registration) {
+          console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch(function(error) {
+          console.error('Service Worker registration failed:', error);
+      });
+}
+
+// Обрабатываем запросы на кэшированные файлы
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      // Возвращаем кэшированный ответ, если он есть, иначе - с сервера
+      return cachedResponse || fetch(event.request);
+    })
+  );
+});
