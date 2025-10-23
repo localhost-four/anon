@@ -183,8 +183,8 @@ function sanitizeHtml(html) {
     // Кэш для проверенных URL
     const urlCache = JSON.parse(localStorage.getItem('urlCache') || '{}');
 
-    // Удаляем опасные теги
-    div.querySelectorAll('script, iframe, object, embed, link, meta, form, input, button').forEach(el => {
+    // Удаляем опасные теги (iframe,) ?
+    div.querySelectorAll('script, object, embed, link, meta, form, input, button').forEach(el => {
         console.log(`Removed unsafe tag: ${el.tagName}`);
         selfHeal('sanitizeHtml', new Error(`Removed unsafe tag: ${el.tagName}`));
         el.remove();
@@ -990,3 +990,4 @@ document.addEventListener("DOMContentLoaded", () => {
     optimizeDatabase();
     setInterval(() => interceptLinkClicks(), 500);
 });
+
